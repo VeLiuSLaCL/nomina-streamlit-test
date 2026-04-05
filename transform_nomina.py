@@ -126,9 +126,6 @@ def ordenar_columnas_por_concepto(columnas_dinamicas):
 
 
 def seleccionar_columnas_existentes(columnas_dinamicas, lista_objetivo):
-    """
-    Busca columnas aunque cambien espacios/mayúsculas.
-    """
     mapa = {}
     for col in columnas_dinamicas:
         base_norm, tipo = separar_base_y_tipo(col)
@@ -212,6 +209,18 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         "TOTAL PRIMA VACACIONAL EXENTO",
     ]
 
+    bloque_prima_dominical = [
+        "PRIMA DOMINICAL GRAVADO",
+        "PRIMA DOMINICAL EXENTO",
+        "ExImp prima dominical GRAVADO",
+        "ExImp prima dominical EXENTO",
+    ]
+
+    totales_prima_dominical = [
+        "TOTAL PRIMA DOMINICAL GRAVADO",
+        "TOTAL PRIMA DOMINICAL EXENTO",
+    ]
+
     usadas = set()
     orden = []
 
@@ -224,6 +233,8 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         totales_vacaciones,
         bloque_prima_vacacional,
         totales_prima_vacacional,
+        bloque_prima_dominical,
+        totales_prima_dominical,
     ]:
         cols = seleccionar_columnas_existentes(columnas_dinamicas, grupo)
         for col in cols:
@@ -252,6 +263,8 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
             "TOTAL VACACIONES EXENTO",
             "TOTAL PRIMA VACACIONAL GRAVADO",
             "TOTAL PRIMA VACACIONAL EXENTO",
+            "TOTAL PRIMA DOMINICAL GRAVADO",
+            "TOTAL PRIMA DOMINICAL EXENTO",
             "TOTAL_EXENTO",
             "TOTAL_GRAVADO",
         ]
@@ -321,7 +334,14 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "LIQ PRIMA VACACIONAL M EXENTO",
     ]
 
-    for col in columnas_sueldos + columnas_festivo + columnas_vacaciones + columnas_prima_vacacional:
+    columnas_prima_dominical = [
+        "PRIMA DOMINICAL GRAVADO",
+        "ExImp prima dominical GRAVADO",
+        "PRIMA DOMINICAL EXENTO",
+        "ExImp prima dominical EXENTO",
+    ]
+
+    for col in columnas_sueldos + columnas_festivo + columnas_vacaciones + columnas_prima_vacacional + columnas_prima_dominical:
         asegurar_columna(resultado, col)
 
     columnas_reales = list(resultado.columns)
@@ -374,6 +394,16 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "PRIMA VACACIONAL EXENTO",
         "ExImp prima vacacional EXENTO",
         "LIQ PRIMA VACACIONAL M EXENTO",
+    ]))
+
+    resultado["TOTAL PRIMA DOMINICAL GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
+        "PRIMA DOMINICAL GRAVADO",
+        "ExImp prima dominical GRAVADO",
+    ]))
+
+    resultado["TOTAL PRIMA DOMINICAL EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
+        "PRIMA DOMINICAL EXENTO",
+        "ExImp prima dominical EXENTO",
     ]))
 
     cols_exento = [c for c in resultado.columns if str(c).endswith(" EXENTO")]
