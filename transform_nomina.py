@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 
 
@@ -81,37 +82,67 @@ def sumar_columnas(df, columnas):
     return df[existentes].sum(axis=1)
 
 
+def normalizar_clave(texto):
+    texto = normalizar_texto(texto).upper()
+    texto = re.sub(r"\s+", " ", texto)
+    return texto
+
+
+def separar_base_y_tipo(columna):
+    col = normalizar_texto(columna)
+    if col.upper().endswith(" GRAVADO"):
+        base = col[:-9]
+        return normalizar_clave(base), "GRAVADO"
+    if col.upper().endswith(" EXENTO"):
+        base = col[:-8]
+        return normalizar_clave(base), "EXENTO"
+    return normalizar_clave(col), None
+
+
 def ordenar_columnas_por_concepto(columnas_dinamicas):
-    """
-    Orden por pareja:
-    CONCEPTO GRAVADO
-    CONCEPTO EXENTO
-    """
     pares = {}
     otras = []
 
     for col in columnas_dinamicas:
-        col_str = str(col)
+        base_norm, tipo = separar_base_y_tipo(col)
 
-        if col_str.endswith(" GRAVADO"):
-            base = col_str[:-9]
-            pares.setdefault(base, {})["GRAVADO"] = col
-        elif col_str.endswith(" EXENTO"):
-            base = col_str[:-8]
-            pares.setdefault(base, {})["EXENTO"] = col
+        if tipo == "GRAVADO":
+            pares.setdefault(base_norm, {})["GRAVADO"] = col
+        elif tipo == "EXENTO":
+            pares.setdefault(base_norm, {})["EXENTO"] = col
         else:
             otras.append(col)
 
     ordenadas = []
-    for base in sorted(pares.keys(), key=lambda x: x.upper()):
+    for base in sorted(pares.keys()):
         if "GRAVADO" in pares[base]:
             ordenadas.append(pares[base]["GRAVADO"])
         if "EXENTO" in pares[base]:
             ordenadas.append(pares[base]["EXENTO"])
 
-    otras = sorted(otras, key=lambda x: str(x).upper())
+    otras = sorted(otras, key=lambda x: normalizar_clave(x))
 
     return ordenadas + otras
+
+
+def seleccionar_columnas_existentes(columnas_dinamicas, lista_objetivo):
+    """
+    Busca columnas aunque cambien espacios/mayúsculas.
+    """
+    mapa = {}
+    for col in columnas_dinamicas:
+        base_norm, tipo = separar_base_y_tipo(col)
+        clave = f"{base_norm}|{tipo}" if tipo else base_norm
+        mapa[clave] = col
+
+    resultado = []
+    for objetivo in lista_objetivo:
+        base_norm, tipo = separar_base_y_tipo(objetivo)
+        clave = f"{base_norm}|{tipo}" if tipo else base_norm
+        if clave in mapa:
+            resultado.append(mapa[clave])
+
+    return resultado
 
 
 def construir_orden_final(columnas_base, columnas_dinamicas):
@@ -156,8 +187,8 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         "PREMIO DE ASISTENCIA EXENTO",
         "PREMIO DE PUNTUALIDAD GRAVADO",
         "PREMIO DE PUNTUALIDAD EXENTO",
-        "LIQ  VACACIONES GRAVADO",
-        "LIQ  VACACIONES EXENTO",
+        "LIQ VACACIONES GRAVADO",
+        "LIQ VACACIONES EXENTO",
         "VACACIONES GRAVADO",
         "VACACIONES EXENTO",
     ]
@@ -172,8 +203,8 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         "PRIMA VACACIONAL EXENTO",
         "ExImp prima vacacional GRAVADO",
         "ExImp prima vacacional EXENTO",
-        "LIQ  PRIMA VACACIONAL M GRAVADO",
-        "LIQ  PRIMA VACACIONAL M EXENTO",
+        "LIQ PRIMA VACACIONAL M GRAVADO",
+        "LIQ PRIMA VACACIONAL M EXENTO",
     ]
 
     totales_prima_vacacional = [
@@ -184,50 +215,24 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
     usadas = set()
     orden = []
 
-    for col in bloque_inicial:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in totales_especiales:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in bloque_festivo:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in totales_festivo:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in bloque_vacaciones:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in totales_vacaciones:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in bloque_prima_vacacional:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
-
-    for col in totales_prima_vacacional:
-        if col in columnas_dinamicas:
-            orden.append(col)
-            usadas.add(col)
+    for grupo in [
+        bloque_inicial,
+        totales_especiales,
+        bloque_festivo,
+        totales_festivo,
+        bloque_vacaciones,
+        totales_vacaciones,
+        bloque_prima_vacacional,
+        totales_prima_vacacional,
+    ]:
+        cols = seleccionar_columnas_existentes(columnas_dinamicas, grupo)
+        for col in cols:
+            if col not in usadas:
+                orden.append(col)
+                usadas.add(col)
 
     restantes = [c for c in columnas_dinamicas if c not in usadas]
-    restantes_ordenadas = ordenar_columnas_por_concepto(restantes)
-
-    orden.extend(restantes_ordenadas)
+    orden.extend(ordenar_columnas_por_concepto(restantes))
 
     for total_general in ["TOTAL_EXENTO", "TOTAL_GRAVADO"]:
         if total_general in columnas_dinamicas and total_general not in orden:
@@ -295,87 +300,81 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
 
     columnas_festivo = [
         "FESTIVO LABORADO GRAVADO",
-        "FESTIVO LABORADO EXENTO",
         "DESCANSO LABORADO GRAVADO",
+        "FESTIVO LABORADO EXENTO",
         "DESCANSO LABORADO EXENTO",
     ]
 
     columnas_vacaciones = [
-        "HORAS EXTRAS DOBLES GRAVADO",
-        "HORAS EXTRAS DOBLES EXENTO",
-        "HORAS EXTRAS TRIPLES GRAVADO",
-        "HORAS EXTRAS TRIPLES EXENTO",
-        "PREMIO DE ASISTENCIA GRAVADO",
-        "PREMIO DE ASISTENCIA EXENTO",
-        "PREMIO DE PUNTUALIDAD GRAVADO",
-        "PREMIO DE PUNTUALIDAD EXENTO",
-        "LIQ  VACACIONES GRAVADO",
-        "LIQ  VACACIONES EXENTO",
+        "LIQ VACACIONES GRAVADO",
         "VACACIONES GRAVADO",
+        "LIQ VACACIONES EXENTO",
         "VACACIONES EXENTO",
     ]
 
     columnas_prima_vacacional = [
         "PRIMA VACACIONAL GRAVADO",
-        "PRIMA VACACIONAL EXENTO",
         "ExImp prima vacacional GRAVADO",
+        "LIQ PRIMA VACACIONAL M GRAVADO",
+        "PRIMA VACACIONAL EXENTO",
         "ExImp prima vacacional EXENTO",
-        "LIQ  PRIMA VACACIONAL M GRAVADO",
-        "LIQ  PRIMA VACACIONAL M EXENTO",
+        "LIQ PRIMA VACACIONAL M EXENTO",
     ]
 
     for col in columnas_sueldos + columnas_festivo + columnas_vacaciones + columnas_prima_vacacional:
         asegurar_columna(resultado, col)
 
-    resultado["TOTAL SUELDOS GRAVADO"] = sumar_columnas(resultado, [
+    columnas_reales = list(resultado.columns)
+
+    resultado["TOTAL SUELDOS GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "SUELDO GRAVADO",
         "Cantidad pendiente GRAVADO",
         "AUSENCIA INJUSTIFICADA GRAVADO",
         "PERMISO SIN GOCE GRAVADO",
         "INCAPACIDAD E GRAL GRAVADO",
         "Ctdad pendiente mes ant GRAVADO",
-    ])
+    ]))
 
-    resultado["TOTAL SUELDOS EXENTO"] = sumar_columnas(resultado, [
+    resultado["TOTAL SUELDOS EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "SUELDO EXENTO",
         "Cantidad pendiente EXENTO",
         "AUSENCIA INJUSTIFICADA EXENTO",
         "PERMISO SIN GOCE EXENTO",
         "INCAPACIDAD E GRAL EXENTO",
         "Ctdad pendiente mes ant EXENTO",
-    ])
+    ]))
 
-    resultado["TOTAL FESTIVO GRAVADO"] = sumar_columnas(resultado, [
+    resultado["TOTAL FESTIVO GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "FESTIVO LABORADO GRAVADO",
         "DESCANSO LABORADO GRAVADO",
-    ])
+    ]))
 
-    resultado["TOTAL FESTIVO EXENTO"] = sumar_columnas(resultado, [
+    resultado["TOTAL FESTIVO EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "FESTIVO LABORADO EXENTO",
         "DESCANSO LABORADO EXENTO",
-    ])
+    ]))
 
-    resultado["TOTAL VACACIONES GRAVADO"] = sumar_columnas(resultado, [
-        "LIQ  VACACIONES GRAVADO",
+    resultado["TOTAL VACACIONES GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
+        "LIQ VACACIONES GRAVADO",
         "VACACIONES GRAVADO",
-    ])
+    ]))
 
-    resultado["TOTAL VACACIONES EXENTO"] = sumar_columnas(resultado, [
-        "LIQ  VACACIONES EXENTO",
+    resultado["TOTAL VACACIONES EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
+        "LIQ VACACIONES EXENTO",
         "VACACIONES EXENTO",
-    ])
+    ]))
 
-    resultado["TOTAL PRIMA VACACIONAL GRAVADO"] = sumar_columnas(resultado, [
+    resultado["TOTAL PRIMA VACACIONAL GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "PRIMA VACACIONAL GRAVADO",
         "ExImp prima vacacional GRAVADO",
-        "LIQ  PRIMA VACACIONAL M GRAVADO",
-    ])
+        "LIQ PRIMA VACACIONAL M GRAVADO",
+    ]))
 
-    resultado["TOTAL PRIMA VACACIONAL EXENTO"] = sumar_columnas(resultado, [
+    resultado["TOTAL PRIMA VACACIONAL EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "PRIMA VACACIONAL EXENTO",
         "ExImp prima vacacional EXENTO",
-        "LIQ  PRIMA VACACIONAL M EXENTO",
-    ])
+        "LIQ PRIMA VACACIONAL M EXENTO",
+    ]))
 
     cols_exento = [c for c in resultado.columns if str(c).endswith(" EXENTO")]
     cols_gravado = [c for c in resultado.columns if str(c).endswith(" GRAVADO")]
@@ -384,20 +383,6 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
     resultado["TOTAL_GRAVADO"] = resultado[cols_gravado].sum(axis=1) if cols_gravado else 0.0
 
     columnas_dinamicas = [c for c in resultado.columns if c not in columnas_base]
-
-    for col in [
-        "TOTAL SUELDOS GRAVADO",
-        "TOTAL SUELDOS EXENTO",
-        "TOTAL FESTIVO GRAVADO",
-        "TOTAL FESTIVO EXENTO",
-        "TOTAL VACACIONES GRAVADO",
-        "TOTAL VACACIONES EXENTO",
-        "TOTAL PRIMA VACACIONAL GRAVADO",
-        "TOTAL PRIMA VACACIONAL EXENTO",
-        "TOTAL_EXENTO",
-        "TOTAL_GRAVADO",
-    ]:
-        asegurar_columna(resultado, col)
 
     orden_final = construir_orden_final(columnas_base, columnas_dinamicas)
 
