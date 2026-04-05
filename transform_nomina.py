@@ -46,12 +46,10 @@ def obtener_columna_exento(df):
     if col:
         return col
 
-    # fallback por nombre, por si el archivo cambia
     col = buscar_columna(df, ["Exento"])
     if col:
         return col
 
-    # fallback por posición U = columna 21 de Excel = índice 20
     if len(df.columns) > 20:
         return df.columns[20]
 
@@ -329,6 +327,54 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
     return columnas_base + orden
 
 
+def crear_buscaremp(df_percepciones):
+    """
+    Crea la columna buscaremp al inicio de PERCEPCIONES:
+    - Período cál.nómina con 2 dígitos
+    - + Número de personal
+    - como texto
+    """
+    if "Período cál.nómina" not in df_percepciones.columns or "Número de personal" not in df_percepciones.columns:
+        return df_percepciones
+
+    def formatear_periodo(valor):
+        if pd.isna(valor):
+            return ""
+        texto = str(valor).strip()
+
+        # Maneja 1, 1.0, "1", etc.
+        try:
+            numero = int(float(texto))
+            return f"{numero:02d}"
+        except Exception:
+            solo_digitos = "".join(ch for ch in texto if ch.isdigit())
+            if solo_digitos:
+                try:
+                    return f"{int(solo_digitos):02d}"
+                except Exception:
+                    pass
+            return texto.zfill(2)
+
+    def formatear_empleado(valor):
+        if pd.isna(valor):
+            return ""
+        texto = str(valor).strip()
+        # Evitar 10001175.0
+        if re.fullmatch(r"\d+\.0", texto):
+            texto = texto[:-2]
+        return texto
+
+    periodo = df_percepciones["Período cál.nómina"].apply(formatear_periodo)
+    empleado = df_percepciones["Número de personal"].apply(formatear_empleado)
+
+    buscaremp = (periodo + empleado).astype(str)
+
+    df_percepciones = df_percepciones.copy()
+    df_percepciones.insert(0, "buscaremp", buscaremp)
+
+    return df_percepciones
+
+
 def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exento, col_gravado):
     if df_bloque.empty:
         columnas_finales = columnas_base + [
@@ -522,6 +568,9 @@ def transformar_hoja_nomina(archivo, nombre_hoja):
         col_exento,
         col_gravado
     )
+
+    # NUEVO: agregar buscaremp solo a percepciones
+    percepciones_final = crear_buscaremp(percepciones_final)
 
     deducciones_final = transformar_bloque(
         deducciones_df,
