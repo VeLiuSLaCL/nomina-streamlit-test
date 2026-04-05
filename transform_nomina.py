@@ -36,6 +36,28 @@ def buscar_columna(df, candidatos_exactos=None):
     return None
 
 
+def obtener_columna_exento(df):
+    """
+    Regla pedida:
+    - usar la columna U (posición 21 en Excel, índice 20 en pandas)
+    - normalmente pandas la lee como 'Exento.1'
+    """
+    col = buscar_columna(df, ["Exento.1"])
+    if col:
+        return col
+
+    # fallback por nombre, por si el archivo cambia
+    col = buscar_columna(df, ["Exento"])
+    if col:
+        return col
+
+    # fallback por posición U = columna 21 de Excel = índice 20
+    if len(df.columns) > 20:
+        return df.columns[20]
+
+    raise ValueError("No encontré la columna de EXENTO (esperaba 'Exento.1' o la columna U).")
+
+
 def clasificar_desde_columna_concepto(valor):
     texto = normalizar_texto(valor).upper()
 
@@ -139,12 +161,6 @@ def ordenar_columnas_por_concepto(columnas_dinamicas):
 
 
 def seleccionar_columnas_existentes(columnas_dinamicas, lista_objetivo):
-    """
-    Busca columnas por clave normalizada:
-    - tolera doble espacio
-    - tolera acentos
-    - tolera mayúsculas/minúsculas
-    """
     mapa = {}
     for col in columnas_dinamicas:
         base_norm, tipo = separar_base_y_tipo(col)
@@ -359,8 +375,6 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
 
     resultado = pd.concat([gravado_pivot, exento_pivot], axis=1).reset_index()
 
-    # MUY IMPORTANTE:
-    # Guardamos solo las columnas originales del pivot ANTES de crear subtotales.
     columnas_originales_concepto = [c for c in resultado.columns if c not in columnas_base]
     columnas_reales = list(resultado.columns)
 
@@ -434,7 +448,6 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "ExImp aguinaldo EXENTO",
     ]))
 
-    # Totales generales SOLO con columnas originales del pivot
     cols_exento_originales = [
         c for c in columnas_originales_concepto
         if str(c).endswith(" EXENTO")
@@ -479,13 +492,11 @@ def transformar_hoja_nomina(archivo, nombre_hoja):
         df,
         candidatos_exactos=["Texto expl.CC-nómina", "Texto expl.CC-nomina"]
     )
-    col_exento = buscar_columna(df, candidatos_exactos=["Exento"])
+    col_exento = obtener_columna_exento(df)
     col_gravado = buscar_columna(df, candidatos_exactos=["Gravado"])
 
     if not col_concepto_detalle:
         raise ValueError("No encontré la columna 'Texto expl.CC-nómina'.")
-    if not col_exento:
-        raise ValueError("No encontré la columna 'Exento'.")
     if not col_gravado:
         raise ValueError("No encontré la columna 'Gravado'.")
 
