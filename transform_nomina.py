@@ -221,6 +221,30 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         "TOTAL PRIMA DOMINICAL EXENTO",
     ]
 
+    bloque_aguinaldo_y_otros = [
+        "COMPENSACIÓN GRAVADO",
+        "COMPENSACIÓN EXENTO",
+        "INDEMNIZACIÓN SD GRAVADO",
+        "INDEMNIZACIÓN SD EXENTO",
+        "BONOS MYM GRAVADO",
+        "BONOS MYM EXENTO",
+        "BONO CONTRATACIÓN GRAVADO",
+        "BONO CONTRATACIÓN EXENTO",
+        "PRIMA DE ANTIGÜEDAD SD GRAVADO",
+        "PRIMA DE ANTIGÜEDAD SD EXENTO",
+        "INDEMNIZACIÓN 20 DÍAS SD GRAVADO",
+        "INDEMNIZACIÓN 20 DÍAS SD EXENTO",
+        "LIQ AGUINALDO GRAVADO",
+        "LIQ AGUINALDO EXENTO",
+        "ExImp aguinaldo GRAVADO",
+        "ExImp aguinaldo EXENTO",
+    ]
+
+    totales_aguinaldo = [
+        "TOTAL AGUINALDO GRAVADO",
+        "TOTAL AGUINALDO EXENTO",
+    ]
+
     usadas = set()
     orden = []
 
@@ -235,6 +259,8 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         totales_prima_vacacional,
         bloque_prima_dominical,
         totales_prima_dominical,
+        bloque_aguinaldo_y_otros,
+        totales_aguinaldo,
     ]:
         cols = seleccionar_columnas_existentes(columnas_dinamicas, grupo)
         for col in cols:
@@ -265,6 +291,8 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
             "TOTAL PRIMA VACACIONAL EXENTO",
             "TOTAL PRIMA DOMINICAL GRAVADO",
             "TOTAL PRIMA DOMINICAL EXENTO",
+            "TOTAL AGUINALDO GRAVADO",
+            "TOTAL AGUINALDO EXENTO",
             "TOTAL_EXENTO",
             "TOTAL_GRAVADO",
         ]
@@ -341,7 +369,33 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "ExImp prima dominical EXENTO",
     ]
 
-    for col in columnas_sueldos + columnas_festivo + columnas_vacaciones + columnas_prima_vacacional + columnas_prima_dominical:
+    columnas_aguinaldo_y_otros = [
+        "COMPENSACIÓN GRAVADO",
+        "COMPENSACIÓN EXENTO",
+        "INDEMNIZACIÓN SD GRAVADO",
+        "INDEMNIZACIÓN SD EXENTO",
+        "BONOS MYM GRAVADO",
+        "BONOS MYM EXENTO",
+        "BONO CONTRATACIÓN GRAVADO",
+        "BONO CONTRATACIÓN EXENTO",
+        "PRIMA DE ANTIGÜEDAD SD GRAVADO",
+        "PRIMA DE ANTIGÜEDAD SD EXENTO",
+        "INDEMNIZACIÓN 20 DÍAS SD GRAVADO",
+        "INDEMNIZACIÓN 20 DÍAS SD EXENTO",
+        "LIQ AGUINALDO GRAVADO",
+        "LIQ AGUINALDO EXENTO",
+        "ExImp aguinaldo GRAVADO",
+        "ExImp aguinaldo EXENTO",
+    ]
+
+    for col in (
+        columnas_sueldos
+        + columnas_festivo
+        + columnas_vacaciones
+        + columnas_prima_vacacional
+        + columnas_prima_dominical
+        + columnas_aguinaldo_y_otros
+    ):
         asegurar_columna(resultado, col)
 
     columnas_reales = list(resultado.columns)
@@ -404,6 +458,16 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
     resultado["TOTAL PRIMA DOMINICAL EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
         "PRIMA DOMINICAL EXENTO",
         "ExImp prima dominical EXENTO",
+    ]))
+
+    resultado["TOTAL AGUINALDO GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
+        "LIQ AGUINALDO GRAVADO",
+        "ExImp aguinaldo GRAVADO",
+    ]))
+
+    resultado["TOTAL AGUINALDO EXENTO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
+        "LIQ AGUINALDO EXENTO",
+        "ExImp aguinaldo EXENTO",
     ]))
 
     cols_exento = [c for c in resultado.columns if str(c).endswith(" EXENTO")]
