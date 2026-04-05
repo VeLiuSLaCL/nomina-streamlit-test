@@ -167,6 +167,20 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         "TOTAL VACACIONES EXENTO",
     ]
 
+    bloque_prima_vacacional = [
+        "PRIMA VACACIONAL GRAVADO",
+        "PRIMA VACACIONAL EXENTO",
+        "ExImp prima vacacional GRAVADO",
+        "ExImp prima vacacional EXENTO",
+        "LIQ  PRIMA VACACIONAL M GRAVADO",
+        "LIQ  PRIMA VACACIONAL M EXENTO",
+    ]
+
+    totales_prima_vacacional = [
+        "TOTAL PRIMA VACACIONAL GRAVADO",
+        "TOTAL PRIMA VACACIONAL EXENTO",
+    ]
+
     usadas = set()
     orden = []
 
@@ -200,6 +214,16 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
             orden.append(col)
             usadas.add(col)
 
+    for col in bloque_prima_vacacional:
+        if col in columnas_dinamicas:
+            orden.append(col)
+            usadas.add(col)
+
+    for col in totales_prima_vacacional:
+        if col in columnas_dinamicas:
+            orden.append(col)
+            usadas.add(col)
+
     restantes = [c for c in columnas_dinamicas if c not in usadas]
     restantes_ordenadas = ordenar_columnas_por_concepto(restantes)
 
@@ -221,6 +245,8 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
             "TOTAL FESTIVO EXENTO",
             "TOTAL VACACIONES GRAVADO",
             "TOTAL VACACIONES EXENTO",
+            "TOTAL PRIMA VACACIONAL GRAVADO",
+            "TOTAL PRIMA VACACIONAL EXENTO",
             "TOTAL_EXENTO",
             "TOTAL_GRAVADO",
         ]
@@ -289,7 +315,16 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "VACACIONES EXENTO",
     ]
 
-    for col in columnas_sueldos + columnas_festivo + columnas_vacaciones:
+    columnas_prima_vacacional = [
+        "PRIMA VACACIONAL GRAVADO",
+        "PRIMA VACACIONAL EXENTO",
+        "ExImp prima vacacional GRAVADO",
+        "ExImp prima vacacional EXENTO",
+        "LIQ  PRIMA VACACIONAL M GRAVADO",
+        "LIQ  PRIMA VACACIONAL M EXENTO",
+    ]
+
+    for col in columnas_sueldos + columnas_festivo + columnas_vacaciones + columnas_prima_vacacional:
         asegurar_columna(resultado, col)
 
     resultado["TOTAL SUELDOS GRAVADO"] = sumar_columnas(resultado, [
@@ -330,6 +365,18 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "VACACIONES EXENTO",
     ])
 
+    resultado["TOTAL PRIMA VACACIONAL GRAVADO"] = sumar_columnas(resultado, [
+        "PRIMA VACACIONAL GRAVADO",
+        "ExImp prima vacacional GRAVADO",
+        "LIQ  PRIMA VACACIONAL M GRAVADO",
+    ])
+
+    resultado["TOTAL PRIMA VACACIONAL EXENTO"] = sumar_columnas(resultado, [
+        "PRIMA VACACIONAL EXENTO",
+        "ExImp prima vacacional EXENTO",
+        "LIQ  PRIMA VACACIONAL M EXENTO",
+    ])
+
     cols_exento = [c for c in resultado.columns if str(c).endswith(" EXENTO")]
     cols_gravado = [c for c in resultado.columns if str(c).endswith(" GRAVADO")]
 
@@ -345,6 +392,8 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "TOTAL FESTIVO EXENTO",
         "TOTAL VACACIONES GRAVADO",
         "TOTAL VACACIONES EXENTO",
+        "TOTAL PRIMA VACACIONAL GRAVADO",
+        "TOTAL PRIMA VACACIONAL EXENTO",
         "TOTAL_EXENTO",
         "TOTAL_GRAVADO",
     ]:
