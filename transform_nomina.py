@@ -87,7 +87,7 @@ def asegurar_columna(df, nombre_columna):
 def sumar_columnas(df, columnas):
     existentes = [c for c in columnas if c in df.columns]
     if not existentes:
-        return pd.Series([0.0] * len(df), index=df.index)
+        return pd.Series([0.0] * len(df), index=df.index, dtype="float64")
     return df[existentes].sum(axis=1)
 
 
@@ -109,6 +109,7 @@ def separar_base_y_tipo(columna):
     if col_sin_acentos.endswith(" EXENTO"):
         base = col[:-8]
         return normalizar_clave(base), "EXENTO"
+
     return normalizar_clave(col), None
 
 
@@ -134,11 +135,16 @@ def ordenar_columnas_por_concepto(columnas_dinamicas):
             ordenadas.append(pares[base]["EXENTO"])
 
     otras = sorted(otras, key=lambda x: normalizar_clave(x))
-
     return ordenadas + otras
 
 
 def seleccionar_columnas_existentes(columnas_dinamicas, lista_objetivo):
+    """
+    Busca columnas por clave normalizada:
+    - tolera doble espacio
+    - tolera acentos
+    - tolera mayúsculas/minúsculas
+    """
     mapa = {}
     for col in columnas_dinamicas:
         base_norm, tipo = separar_base_y_tipo(col)
@@ -353,6 +359,9 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
 
     resultado = pd.concat([gravado_pivot, exento_pivot], axis=1).reset_index()
 
+    # MUY IMPORTANTE:
+    # Guardamos solo las columnas originales del pivot ANTES de crear subtotales.
+    columnas_originales_concepto = [c for c in resultado.columns if c not in columnas_base]
     columnas_reales = list(resultado.columns)
 
     resultado["TOTAL SUELDOS GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
@@ -425,11 +434,24 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "ExImp aguinaldo EXENTO",
     ]))
 
-    cols_exento = [c for c in resultado.columns if str(c).endswith(" EXENTO")]
-    cols_gravado = [c for c in resultado.columns if str(c).endswith(" GRAVADO")]
+    # Totales generales SOLO con columnas originales del pivot
+    cols_exento_originales = [
+        c for c in columnas_originales_concepto
+        if str(c).endswith(" EXENTO")
+    ]
+    cols_gravado_originales = [
+        c for c in columnas_originales_concepto
+        if str(c).endswith(" GRAVADO")
+    ]
 
-    resultado["TOTAL_EXENTO"] = resultado[cols_exento].sum(axis=1) if cols_exento else 0.0
-    resultado["TOTAL_GRAVADO"] = resultado[cols_gravado].sum(axis=1) if cols_gravado else 0.0
+    resultado["TOTAL_EXENTO"] = (
+        resultado[cols_exento_originales].sum(axis=1)
+        if cols_exento_originales else 0.0
+    )
+    resultado["TOTAL_GRAVADO"] = (
+        resultado[cols_gravado_originales].sum(axis=1)
+        if cols_gravado_originales else 0.0
+    )
 
     columnas_dinamicas = [c for c in resultado.columns if c not in columnas_base]
     orden_final = construir_orden_final(columnas_base, columnas_dinamicas)
