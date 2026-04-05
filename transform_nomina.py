@@ -1,4 +1,5 @@
 import re
+import unicodedata
 import pandas as pd
 
 
@@ -6,6 +7,14 @@ def normalizar_texto(valor):
     if pd.isna(valor):
         return ""
     return str(valor).strip()
+
+
+def quitar_acentos(texto):
+    texto = str(texto)
+    return "".join(
+        c for c in unicodedata.normalize("NFD", texto)
+        if unicodedata.category(c) != "Mn"
+    )
 
 
 def leer_hojas_excel(archivo):
@@ -83,17 +92,21 @@ def sumar_columnas(df, columnas):
 
 
 def normalizar_clave(texto):
-    texto = normalizar_texto(texto).upper()
+    texto = normalizar_texto(texto)
+    texto = quitar_acentos(texto)
+    texto = texto.upper()
     texto = re.sub(r"\s+", " ", texto)
-    return texto
+    return texto.strip()
 
 
 def separar_base_y_tipo(columna):
     col = normalizar_texto(columna)
-    if col.upper().endswith(" GRAVADO"):
+    col_sin_acentos = quitar_acentos(col).upper()
+
+    if col_sin_acentos.endswith(" GRAVADO"):
         base = col[:-9]
         return normalizar_clave(base), "GRAVADO"
-    if col.upper().endswith(" EXENTO"):
+    if col_sin_acentos.endswith(" EXENTO"):
         base = col[:-8]
         return normalizar_clave(base), "EXENTO"
     return normalizar_clave(col), None
@@ -222,18 +235,18 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
     ]
 
     bloque_aguinaldo_y_otros = [
-        "COMPENSACIÓN GRAVADO",
-        "COMPENSACIÓN EXENTO",
-        "INDEMNIZACIÓN SD GRAVADO",
-        "INDEMNIZACIÓN SD EXENTO",
+        "COMPENSACION GRAVADO",
+        "COMPENSACION EXENTO",
+        "INDEMNIZACION SD GRAVADO",
+        "INDEMNIZACION SD EXENTO",
         "BONOS MYM GRAVADO",
         "BONOS MYM EXENTO",
-        "BONO CONTRATACIÓN GRAVADO",
-        "BONO CONTRATACIÓN EXENTO",
-        "PRIMA DE ANTIGÜEDAD SD GRAVADO",
-        "PRIMA DE ANTIGÜEDAD SD EXENTO",
-        "INDEMNIZACIÓN 20 DÍAS SD GRAVADO",
-        "INDEMNIZACIÓN 20 DÍAS SD EXENTO",
+        "BONO CONTRATACION GRAVADO",
+        "BONO CONTRATACION EXENTO",
+        "PRIMA DE ANTIGUEDAD SD GRAVADO",
+        "PRIMA DE ANTIGUEDAD SD EXENTO",
+        "INDEMNIZACION 20 DIAS SD GRAVADO",
+        "INDEMNIZACION 20 DIAS SD EXENTO",
         "LIQ AGUINALDO GRAVADO",
         "LIQ AGUINALDO EXENTO",
         "ExImp aguinaldo GRAVADO",
@@ -248,8 +261,16 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
     bloque_final = [
         "AJ DESPENSA GRAVADO",
         "AJ DESPENSA EXENTO",
+        "BONOS MYM GRAVADO",
+        "BONOS MYM EXENTO",
         "DEV FONACOT GRAVADO",
         "DEV FONACOT EXENTO",
+        "LIQ AGUINALDO GRAVADO",
+        "LIQ AGUINALDO EXENTO",
+        "LIQ PRIMA VACACIONAL M GRAVADO",
+        "LIQ PRIMA VACACIONAL M EXENTO",
+        "LIQ VACACIONES GRAVADO",
+        "LIQ VACACIONES EXENTO",
     ]
 
     usadas = set()
@@ -332,88 +353,6 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
 
     resultado = pd.concat([gravado_pivot, exento_pivot], axis=1).reset_index()
 
-    columnas_sueldos = [
-        "SUELDO GRAVADO",
-        "SUELDO EXENTO",
-        "Cantidad pendiente GRAVADO",
-        "Cantidad pendiente EXENTO",
-        "AUSENCIA INJUSTIFICADA GRAVADO",
-        "AUSENCIA INJUSTIFICADA EXENTO",
-        "PERMISO SIN GOCE GRAVADO",
-        "PERMISO SIN GOCE EXENTO",
-        "INCAPACIDAD E GRAL GRAVADO",
-        "INCAPACIDAD E GRAL EXENTO",
-        "Ctdad pendiente mes ant GRAVADO",
-        "Ctdad pendiente mes ant EXENTO",
-    ]
-
-    columnas_festivo = [
-        "FESTIVO LABORADO GRAVADO",
-        "DESCANSO LABORADO GRAVADO",
-        "FESTIVO LABORADO EXENTO",
-        "DESCANSO LABORADO EXENTO",
-    ]
-
-    columnas_vacaciones = [
-        "LIQ VACACIONES GRAVADO",
-        "VACACIONES GRAVADO",
-        "LIQ VACACIONES EXENTO",
-        "VACACIONES EXENTO",
-    ]
-
-    columnas_prima_vacacional = [
-        "PRIMA VACACIONAL GRAVADO",
-        "ExImp prima vacacional GRAVADO",
-        "LIQ PRIMA VACACIONAL M GRAVADO",
-        "PRIMA VACACIONAL EXENTO",
-        "ExImp prima vacacional EXENTO",
-        "LIQ PRIMA VACACIONAL M EXENTO",
-    ]
-
-    columnas_prima_dominical = [
-        "PRIMA DOMINICAL GRAVADO",
-        "ExImp prima dominical GRAVADO",
-        "PRIMA DOMINICAL EXENTO",
-        "ExImp prima dominical EXENTO",
-    ]
-
-    columnas_aguinaldo_y_otros = [
-        "COMPENSACIÓN GRAVADO",
-        "COMPENSACIÓN EXENTO",
-        "INDEMNIZACIÓN SD GRAVADO",
-        "INDEMNIZACIÓN SD EXENTO",
-        "BONOS MYM GRAVADO",
-        "BONOS MYM EXENTO",
-        "BONO CONTRATACIÓN GRAVADO",
-        "BONO CONTRATACIÓN EXENTO",
-        "PRIMA DE ANTIGÜEDAD SD GRAVADO",
-        "PRIMA DE ANTIGÜEDAD SD EXENTO",
-        "INDEMNIZACIÓN 20 DÍAS SD GRAVADO",
-        "INDEMNIZACIÓN 20 DÍAS SD EXENTO",
-        "LIQ AGUINALDO GRAVADO",
-        "LIQ AGUINALDO EXENTO",
-        "ExImp aguinaldo GRAVADO",
-        "ExImp aguinaldo EXENTO",
-    ]
-
-    columnas_finales_bloque = [
-        "AJ DESPENSA GRAVADO",
-        "AJ DESPENSA EXENTO",
-        "DEV FONACOT GRAVADO",
-        "DEV FONACOT EXENTO",
-    ]
-
-    for col in (
-        columnas_sueldos
-        + columnas_festivo
-        + columnas_vacaciones
-        + columnas_prima_vacacional
-        + columnas_prima_dominical
-        + columnas_aguinaldo_y_otros
-        + columnas_finales_bloque
-    ):
-        asegurar_columna(resultado, col)
-
     columnas_reales = list(resultado.columns)
 
     resultado["TOTAL SUELDOS GRAVADO"] = sumar_columnas(resultado, seleccionar_columnas_existentes(columnas_reales, [
@@ -493,7 +432,6 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
     resultado["TOTAL_GRAVADO"] = resultado[cols_gravado].sum(axis=1) if cols_gravado else 0.0
 
     columnas_dinamicas = [c for c in resultado.columns if c not in columnas_base]
-
     orden_final = construir_orden_final(columnas_base, columnas_dinamicas)
 
     for col in orden_final:
