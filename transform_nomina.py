@@ -245,6 +245,13 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         "TOTAL AGUINALDO EXENTO",
     ]
 
+    bloque_final = [
+        "AJ DESPENSA GRAVADO",
+        "AJ DESPENSA EXENTO",
+        "DEV FONACOT GRAVADO",
+        "DEV FONACOT EXENTO",
+    ]
+
     usadas = set()
     orden = []
 
@@ -261,6 +268,7 @@ def construir_orden_final(columnas_base, columnas_dinamicas):
         totales_prima_dominical,
         bloque_aguinaldo_y_otros,
         totales_aguinaldo,
+        bloque_final,
     ]:
         cols = seleccionar_columnas_existentes(columnas_dinamicas, grupo)
         for col in cols:
@@ -388,6 +396,13 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         "ExImp aguinaldo EXENTO",
     ]
 
+    columnas_finales_bloque = [
+        "AJ DESPENSA GRAVADO",
+        "AJ DESPENSA EXENTO",
+        "DEV FONACOT GRAVADO",
+        "DEV FONACOT EXENTO",
+    ]
+
     for col in (
         columnas_sueldos
         + columnas_festivo
@@ -395,6 +410,7 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
         + columnas_prima_vacacional
         + columnas_prima_dominical
         + columnas_aguinaldo_y_otros
+        + columnas_finales_bloque
     ):
         asegurar_columna(resultado, col)
 
