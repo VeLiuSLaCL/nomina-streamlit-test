@@ -13,10 +13,8 @@ def leer_hojas_excel(archivo):
     return xls.sheet_names
 
 
-def buscar_columna(df, candidatos_exactos=None, contiene=None, preferir_primera=True):
+def buscar_columna(df, candidatos_exactos=None):
     candidatos_exactos = candidatos_exactos or []
-    contiene = contiene or []
-
     columnas = list(df.columns)
     columnas_norm = {str(c).strip().lower(): c for c in columnas}
 
@@ -25,28 +23,16 @@ def buscar_columna(df, candidatos_exactos=None, contiene=None, preferir_primera=
         if key in columnas_norm:
             return columnas_norm[key]
 
-    coincidencias = []
-    for c in columnas:
-        c_norm = str(c).strip().lower()
-        for fragmento in contiene:
-            if fragmento.lower() in c_norm:
-                coincidencias.append(c)
-                break
-
-    if coincidencias:
-        return coincidencias[0] if preferir_primera else coincidencias[-1]
-
     return None
 
 
-def clasificar_registro(valor_concepto, valor_tipo_concepto):
-    texto1 = normalizar_texto(valor_concepto).upper()
-    texto2 = normalizar_texto(valor_tipo_concepto).upper()
+def clasificar_desde_columna_concepto(valor):
+    texto = normalizar_texto(valor).upper()
 
-    if "DEDUC" in texto1 or "DEDUC" in texto2:
+    if "DEDUC" in texto:
         return "DEDUCCIONES"
 
-    if "PERCEP" in texto1 or "PERCEP" in texto2 or "OTROPAGO" in texto2 or "OTRO PAGO" in texto2:
+    if "PERCEP" in texto:
         return "PERCEPCIONES"
 
     return None
@@ -98,7 +84,9 @@ def obtener_columnas_base(df):
     existentes = [c for c in preferidas if c in df.columns]
 
     if not existentes:
-        raise ValueError("No se encontraron columnas base suficientes para consolidar por empleado y período.")
+        raise ValueError(
+            "No se encontraron columnas base suficientes para consolidar por empleado y período."
+        )
 
     return existentes
 
@@ -107,9 +95,12 @@ def transformar_bloque(df_bloque, columnas_base, col_concepto_detalle, col_exent
     if df_bloque.empty:
         return pd.DataFrame(columns=columnas_base + ["TOTAL_EXENTO", "TOTAL_GRAVADO"])
 
-    # Agrupar primero para evitar duplicados exactos antes del pivot
     agrupado = (
-        df_bloque.groupby(columnas_base + [col_concepto_detalle], dropna=False, as_index=False)[[col_exento, col_gravado]]
+        df_bloque.groupby(
+            columnas_base + [col_concepto_detalle],
+            dropna=False,
+            as_index=False
+        )[[col_exento, col_gravado]]
         .sum()
     )
 
@@ -151,14 +142,15 @@ def transformar_hoja_nomina(archivo, nombre_hoja):
 
     df.columns = [str(c).strip() for c in df.columns]
 
+    # La división SIEMPRE sale de la columna N = CONCEPTO
     col_concepto = buscar_columna(df, candidatos_exactos=["CONCEPTO"])
-    col_tipo_concepto = buscar_columna(df, candidatos_exactos=["Tipo de Concepto"])
+    if not col_concepto:
+        raise ValueError("No encontré la columna 'CONCEPTO' (columna N).")
+
     col_concepto_detalle = buscar_columna(
         df,
         candidatos_exactos=["Texto expl.CC-nómina", "Texto expl.CC-nomina"]
     )
-
-    # En tu archivo real, la buena es "Exento", no "Exento.1"
     col_exento = buscar_columna(df, candidatos_exactos=["Exento"])
     col_gravado = buscar_columna(df, candidatos_exactos=["Gravado"])
 
@@ -171,17 +163,13 @@ def transformar_hoja_nomina(archivo, nombre_hoja):
 
     columnas_base = obtener_columnas_base(df)
 
+    df[col_concepto] = df[col_concepto].apply(normalizar_texto)
     df[col_concepto_detalle] = df[col_concepto_detalle].apply(normalizar_texto)
     df[col_exento] = pd.to_numeric(df[col_exento], errors="coerce").fillna(0.0)
     df[col_gravado] = pd.to_numeric(df[col_gravado], errors="coerce").fillna(0.0)
 
-    df["_TIPO_SALIDA_"] = df.apply(
-        lambda r: clasificar_registro(
-            r[col_concepto] if col_concepto in df.columns else "",
-            r[col_tipo_concepto] if col_tipo_concepto in df.columns else "",
-        ),
-        axis=1
-    )
+    # SOLO columna CONCEPTO define la hoja destino
+    df["_TIPO_SALIDA_"] = df[col_concepto].apply(clasificar_desde_columna_concepto)
 
     df = df[df["_TIPO_SALIDA_"].notna()].copy()
     df = df[df[col_concepto_detalle].str.strip() != ""].copy()
